@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+config="${DUTFLOW_CONFIG:-$HOME/.config/dutflow/.env}"
+# Preserve existing installations without forcing credential migration.
+if [[ -z ${DUTFLOW_CONFIG:-} && ! -f "$config" ]]; then
+ config="$HOME/.config/dutflow/config"
+fi
+[[ -r "$config" ]] || { echo 'Missing config: copy .env.example to ~/.config/dutflow/.env' >&2; exit 1; }
+# shellcheck disable=SC1090
+source "$config"
+[[ -n ${DUTFLOW_URL:-} && -n ${DUTFLOW_TOKEN:-} && -n ${DUTFLOW_SSH_USER:-} ]] || {
+ echo 'Config requires DUTFLOW_URL, DUTFLOW_TOKEN and DUTFLOW_SSH_USER' >&2; exit 1;
+}
+api() { curl --fail --silent --show-error --max-time 10 -H "Authorization: Bearer $DUTFLOW_TOKEN" "$DUTFLOW_URL$1"; }
+resolve() { api /v1/resolve | awk -F'"' '/"ip"/{print $4; exit}'; }
+ssh_opts=(-i "${DUTFLOW_SSH_KEY:-$HOME/.ssh/dutflow_windows}" -o IdentitiesOnly=yes -o ConnectTimeout=10)
+cmd="${1:-ip}"
+ip=$(resolve) || { echo 'Local PC is offline or not announced.' >&2; exit 1; }
+case "$cmd" in
+ ip) printf '%s\n' "$ip" ;;
+ ssh) shift; exec ssh "${ssh_opts[@]}" "${DUTFLOW_SSH_USER:-$USER}@$ip" "$@" ;;
+ pin) [[ ${2:-} =~ ^[0-9]{4}$ ]] || { echo 'usage: dutflow pin 1234' >&2; exit 2; }; exec ssh "${ssh_opts[@]}" "${DUTFLOW_SSH_USER:-$USER}@$ip" powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\ProgramData\Dutflow\sunshine-pin.ps1' -Pin "$2" ;;
+ check) exec ssh "${ssh_opts[@]}" "${DUTFLOW_SSH_USER:-$USER}@$ip" powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\ProgramData\Dutflow\sunshine-pin.ps1' -Check ;;
+ stream) shift; command -v moonlight >/dev/null || { echo 'moonlight is required' >&2; exit 1; }; if [[ $# -eq 0 ]]; then set -- Desktop; fi; exec moonlight stream "$ip" "$@" ;;
+ *) echo 'usage: dutflow {ip|ssh [command]|pin 1234|check|stream [moonlight args...]}' >&2; exit 2 ;;
+esac

@@ -1,0 +1,5 @@
+{
+  "url": "https://rendezvous.example.com",
+  "token": "REPLACE_WITH_SERVER_TOKEN",
+  "ssh_user": "WINDOWS_USERNAME"
+}

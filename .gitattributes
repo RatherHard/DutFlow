@@ -1,0 +1,5 @@
+archlinux/dutflow text eol=lf
+tests/*.sh text eol=lf
+server/*.sh text eol=lf
+*.py text eol=lf
+.env.example text eol=lf
